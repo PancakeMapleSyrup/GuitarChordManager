@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.*
 import java.util.UUID
 import javax.inject.Inject
 
+import com.example.guitarchordmanager.data.Song
+
 // --- 데이터 모델 ---
 data class Chord(
     val id: String = UUID.randomUUID().toString(),
@@ -25,7 +27,6 @@ data class SongDetailUiState(
 
 @HiltViewModel
 class SongDetailViewModel @Inject constructor() : ViewModel() {
-
     private val _uiState = MutableStateFlow(SongDetailUiState())
     val uiState = _uiState.asStateFlow()
 
@@ -95,5 +96,16 @@ class SongDetailViewModel @Inject constructor() : ViewModel() {
             }
             state.copy(parts = newParts)
         }
+    }
+
+    // 노래 메타데이터 수정 함수 추가
+    fun updateSongInfo(
+        newtitle: String,
+        newArtist: String,
+        newBpm: String,
+        newCapo: String,
+        newTuning: String
+    ) {
+
     }
 }

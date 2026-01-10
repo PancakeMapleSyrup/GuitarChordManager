@@ -1,5 +1,6 @@
 package com.example.guitarchordmanager.songdetail
 
+import android.R.attr.label
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,7 +20,9 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,11 +33,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.guitarchordmanager.data.Song
+import com.example.guitarchordmanager.ui.components.EditSongInfoDialog
 import com.example.guitarchordmanager.ui.components.TextField
 import com.example.guitarchordmanager.ui.theme.*
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import kotlin.math.ceil
 
 @Composable
 fun SongDetailScreen(
@@ -44,10 +50,12 @@ fun SongDetailScreen(
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val song = uiState.song
 
     // 다이얼로그 상태
     var showAddPartDialog by remember { mutableStateOf(false) }
     var showAddChordDialogForPartId by remember { mutableStateOf<String?>(null) } // 파트 ID 저장
+    var showEditInfoDialog by remember { mutableStateOf(false) }
 
     Box(
         modifier = Modifier
@@ -70,10 +78,29 @@ fun SongDetailScreen(
                 IconButton(onClick = onBackClick) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Gray900)
                 }
+
                 Spacer(modifier = Modifier.width(8.dp))
-                Column {
+
+                Column (
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { showEditInfoDialog = true }
+                        .padding(8.dp)
+                ) {
                     Text(title, style = Typography.titleLarge.copy(fontWeight = FontWeight.Bold))
                     Text(artist, style = Typography.bodyMedium.copy(color = Gray400))
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        InfoBadge(label = "BPM", value = song.bpm)
+                        InfoBadge(label = "Capo", value = song.capo)
+                        InfoBadge(label = "Tune", value = song.tuning)
+                    }
+
+                    // 오른쪽에 수정 아이콘을 작게 둬서 클릭 가능하다는 힌트 주기 (선택사항)
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Info", tint = Gray400, modifier = Modifier.size(16.dp))
                 }
             }
 
@@ -110,20 +137,39 @@ fun SongDetailScreen(
                     }
                 }
             }
+
+            if (showEditInfoDialog) {
+                EditSongInfoDialog(
+                    initialTitle = song.title,
+                    initialArtist = song.artist,
+                    initialBpm = song.bpm,
+                    initialCapo = song.capo,
+                    initialTuning = song.tuning,
+                    onDismiss = { showEditInfoDialog = false },
+                    onConfirm = { t, a, b, c, tu ->
+                        viewModel.updateSongInfo(t, a, b, c, tu)
+                        showEditInfoDialog = false
+                    }
+                )
+            }
         }
 
         // 플로팅 버튼 (파트 추가)
-        FloatingActionButton(
+        ExtendedFloatingActionButton(
             onClick = { showAddPartDialog = true },
             containerColor = TossBlue,
             contentColor = Color.White,
-            shape = CircleShape,
+            shape = RoundedCornerShape(20.dp),
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(24.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add Part")
-        }
+                .padding(24.dp),
+            icon = {
+                Icon(Icons.Default.Add, contentDescription = null)
+            },
+            text = {
+                Text(text = "파트 추가", style = Typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+            }
+        )
 
         // --- 다이얼로그들 ---
 
@@ -201,12 +247,14 @@ fun PartItem(
                 // 코드 추가 버튼 (작은 +)
                 IconButton(
                     onClick = onAddChordClick,
-                    modifier = Modifier.size(32.dp).background(Color.White, CircleShape)
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(Color.White, CircleShape)
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Chord", tint = TossBlue, modifier = Modifier.size(16.dp))
                 }
 
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(16.dp))
 
                 // 파트 삭제 버튼 (X)
                 IconButton(
@@ -219,48 +267,67 @@ fun PartItem(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // [코드 그리드] 파트 내부의 코드들
-            // 중첩 스크롤 문제를 피하기 위해 높이를 제한하거나 계산해야 합니다.
-            // 여기서는 고정 높이를 주어 그리드 내에서 스크롤/드래그가 가능하게 합니다.
-            val chordGridState = rememberLazyGridState()
-            val chordReorderState = rememberReorderableLazyGridState(chordGridState) { from, to ->
-                val fromId = from.key as? String
-                val toId = to.key as? String
-                if (fromId != null && toId != null) {
-                    onReorderChord(fromId, toId)
-                }
-            }
+            BoxWithConstraints {
+                val screenWidth = maxWidth
+                val spacing = 8.dp
+                val minCellWidth = 140.dp   // 코드 박스 최소 너비 (운지표 공간 확보)
+                val cellHeight = 240.dp     // 코드 박스 높이 (운지표 공간 확보)
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 60.dp, max = 240.dp) // 높이 제한 (내용물에 따라 늘어나되 최대값 설정)
-            ) {
-                if (part.chords.isEmpty()) {
-                    Text(
-                        "코드를 추가해주세요",
-                        style = Typography.bodySmall.copy(color = Gray400),
-                        modifier = Modifier.align(Alignment.Center)
-                    )
+                // 한 줄에 들어갈 수 있는 개수 계산
+                // (화면너비 + 간격) / (최소너비 + 간격)
+                val columns = maxOf(1, ((screenWidth + spacing) / (minCellWidth + spacing)).toInt())
+
+                // 필요한 행 갯 계산
+                val rows = ceil(part.chords.size.toFloat() / columns).toInt()
+
+                // 전체 그리드 높이 계산 (행 높이 + 간격)
+                val gridHeight = if (rows > 0) {
+                    (cellHeight * rows) + (spacing * (rows - 1))
                 } else {
+                    0.dp
+                }
+
+                // 빈 파트일 때 안내 문구
+                if (part.chords.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("코드를 추가해주세요", style = Typography.bodySmall.copy(color = Gray400))
+                    }
+                } else {
+                        val chordGridState = rememberLazyGridState()
+                        val chordReorderState = rememberReorderableLazyGridState(chordGridState) { from, to ->
+                            val fromId = from.key as? String
+                            val toId = to.key as? String
+                            if (fromId != null && toId != null) {
+                                onReorderChord(fromId, toId)
+                            }
+                        }
                     LazyVerticalGrid(
                         state = chordGridState,
-                        columns = GridCells.Adaptive(minSize = 60.dp), // 반응형 그리드
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxSize()
+                        columns = GridCells.Fixed(columns), // 계산된 컬럼 수 고정
+                        verticalArrangement = Arrangement.spacedBy(spacing),
+                        horizontalArrangement = Arrangement.spacedBy(spacing),
+                        userScrollEnabled = false, // 중요: 내부 스크롤을 꺼야 외부 리스트(LazyColumn)가 스크롤 됨
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(gridHeight) // 중요: 계산된 높이만큼 강제로 늘림
                     ) {
                         items(part.chords, key = { it.id }) { chord ->
                             ReorderableItem(chordReorderState, key = chord.id) { isDragging ->
-                                val chordElevation by animateDpAsState(if (isDragging) 4.dp else 0.dp, label = "chord")
+                                val chordElevation by animateDpAsState(
+                                    if (isDragging) 8.dp else 0.dp,
+                                    label = "chord"
+                                )
 
-                                // 코드 칩 (Chord Chip)
                                 ChordChip(
                                     name = chord.name,
                                     elevation = chordElevation,
-                                    // 드래그 핸들을 따로 두지 않고 칩 전체를 길게 눌러 드래그
                                     modifier = Modifier.longPressDraggableHandle(true),
-                                    onClick = { /* 코드 수정/삭제 다이얼로그 띄우기 가능 */ }
+                                    onClick = { /* 수정 기능 연결 */ }
                                 )
                             }
                         }
@@ -283,17 +350,55 @@ fun ChordChip(
         color = Color.White,
         shadowElevation = elevation,
         modifier = modifier
-            .height(48.dp)
+            .height(240.dp)
             .clickable(onClick = onClick)
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.fillMaxSize()
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = name,
-                style = Typography.bodyLarge.copy(fontWeight = FontWeight.Bold, color = Gray900)
-            )
+            // 상단: 코드 이름
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp)
+                    .background(Gray100.copy(alpha = 0.5f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = name,
+                    style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Gray900)
+                )
+            }
+
+            // 하단: 운지표 들어갈 공간 (Placeholder)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // 나중에 여기에 실제 운지표 그림(Canvas)을 넣으면 됩니다.
+                // 지금은 가이드라인처럼 점선이나 텍스트를 표시
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    HorizontalDivider(
+                        modifier = Modifier.width(40.dp),
+                        thickness = 1.dp,
+                        color = Gray100
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.width(40.dp),
+                        thickness = 1.dp,
+                        color = Gray100
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    HorizontalDivider(
+                        modifier = Modifier.width(40.dp),
+                        thickness = 1.dp,
+                        color = Gray100
+                    )
+                }
+            }
         }
     }
 }
@@ -337,4 +442,24 @@ fun SimpleTextInputDialog(
         containerColor = Color.White,
         shape = RoundedCornerShape(20.dp)
     )
+}
+
+// ---------------------------
+// 작은 정보 배지 컴포넌트
+// ---------------------------
+@Composable
+fun InfoBadge(label: String, value: String) {
+    Surface(
+        color = Gray100,
+        shape = RoundedCornerShape(6.dp),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(label, style = Typography.labelSmall.copy(color = Gray400, fontWeight = FontWeight.Bold))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(value, style = Typography.labelSmall.copy(color = Gray900, fontWeight = FontWeight.Bold))
+        }
+    }
 }

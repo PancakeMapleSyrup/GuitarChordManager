@@ -4,19 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.util.UUID
 import javax.inject.Inject
 import dagger.hilt.android.lifecycle.HiltViewModel
 
-// 데이터 모델
-data class Song(
-    val id: String = UUID.randomUUID().toString(),
-    val title: String,
-    val artist: String = "Unknown Artist",
-    val isFavorite: Boolean = false
-)
+import com.example.guitarchordmanager.data.Song
 
 // UI 상태를 정의하는 Data Class
 data class SongListUiState(
