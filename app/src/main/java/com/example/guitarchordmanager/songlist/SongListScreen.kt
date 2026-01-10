@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
+import com.example.guitarchordmanager.data.Song
 import com.example.guitarchordmanager.ui.components.TextField
 import com.example.guitarchordmanager.ui.components.EditSongDialog
 import com.example.guitarchordmanager.ui.components.DeleteDialog

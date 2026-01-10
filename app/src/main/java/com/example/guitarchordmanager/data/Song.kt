@@ -1,5 +1,6 @@
 package com.example.guitarchordmanager.data
 
+import com.example.guitarchordmanager.songdetail.SongPart
 import java.util.UUID
 
 // 이 클래스는 앱 전체에서 공용으로 사용
@@ -10,5 +11,7 @@ data class Song(
     val isFavorite: Boolean = false,
     val bpm: String = "-",
     val capo: String = "None",
-    val tuning: String = "Standard"
+    val tuning: String = "Standard",
+
+    val parts: List<SongPart> = emptyList()
 )

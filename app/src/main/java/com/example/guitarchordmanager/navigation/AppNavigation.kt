@@ -55,17 +55,16 @@ fun AppNavigation() {
             SongListScreen(
                 onSongClick = { song ->
                     // SongDetailScreen으로 이동
-                    navController.navigate("detail/${song.title}/${song.artist}")
+                    navController.navigate("detail/${song.id}")
                 }
             )
         }
 
         // SongDetailScreen 화면
         composable(
-            route = "detail/{title}/{artist}",
+            route = "detail/{songId}",
             arguments = listOf(
-                navArgument("title") { type = NavType.StringType },
-                navArgument("artist") { type = NavType.StringType }
+                navArgument("songId") { type = NavType.StringType }
             ),
             // [SongDetailScreen으로 들어올 때] 오른쪽에서 왼쪽으로 들어옴
             enterTransition = {
@@ -83,13 +82,7 @@ fun AppNavigation() {
             }
         ) {
             backStackEntry ->
-            // 경로에서 데이터 꺼내기
-            val title = backStackEntry.arguments?.getString("title") ?: "제목 없음"
-            val artist = backStackEntry.arguments?.getString("artist") ?: "가수 없음"
-
             SongDetailScreen(
-                title = title,
-                artist = artist,
                 onBackClick = { navController.popBackStack() } // 뒤로가기
             )
         }

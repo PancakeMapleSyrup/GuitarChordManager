@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -49,7 +50,7 @@ fun EditSongInfoDialog(
                 SimpleTextField(value = artist, onValueChange = { artist = it }, label = "가수")
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Divider(color = Gray100)
+                HorizontalDivider(Modifier, DividerDefaults.Thickness, color = Gray100)
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // 부가 정보 (가로 배치 or 세로 배치)

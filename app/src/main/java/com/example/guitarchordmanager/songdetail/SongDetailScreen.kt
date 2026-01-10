@@ -44,13 +44,19 @@ import kotlin.math.ceil
 
 @Composable
 fun SongDetailScreen(
-    title: String,
-    artist: String,
     viewModel: SongDetailViewModel = hiltViewModel(),
     onBackClick: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val song = uiState.song
+    val song = uiState.song // ViewModel이 찾아온 노래
+
+    // 로딩 중이거나 데이터를 못 찾았을 때 처리
+    if (song == null) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = TossBlue) // 로딩 뺑뺑이
+        }
+        return
+    }
 
     // 다이얼로그 상태
     var showAddPartDialog by remember { mutableStateOf(false) }
@@ -88,8 +94,8 @@ fun SongDetailScreen(
                         .clickable { showEditInfoDialog = true }
                         .padding(8.dp)
                 ) {
-                    Text(title, style = Typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-                    Text(artist, style = Typography.bodyMedium.copy(color = Gray400))
+                    Text(song.title, style = Typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+                    Text(song.artist, style = Typography.bodyMedium.copy(color = Gray400))
 
                     Spacer(modifier = Modifier.height(6.dp))
 
@@ -98,9 +104,6 @@ fun SongDetailScreen(
                         InfoBadge(label = "Capo", value = song.capo)
                         InfoBadge(label = "Tune", value = song.tuning)
                     }
-
-                    // 오른쪽에 수정 아이콘을 작게 둬서 클릭 가능하다는 힌트 주기 (선택사항)
-                    Icon(Icons.Default.Edit, contentDescription = "Edit Info", tint = Gray400, modifier = Modifier.size(16.dp))
                 }
             }
 
@@ -120,7 +123,7 @@ fun SongDetailScreen(
                 contentPadding = PaddingValues(bottom = 100.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(uiState.parts, key = { it.id }) { part ->
+                items(uiState.song?.parts ?: emptyList()) { part ->
                     ReorderableItem(partReorderState, key = part.id) { isDragging ->
                         val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp, label = "partElev")
 

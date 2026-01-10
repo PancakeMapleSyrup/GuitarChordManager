@@ -4,11 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import dagger.hilt.android.lifecycle.HiltViewModel
 
 import com.example.guitarchordmanager.data.Song
+import com.example.guitarchordmanager.data.repository.SongRepository
+import kotlinx.coroutines.launch
 
 // UI 상태를 정의하는 Data Class
 data class SongListUiState(
@@ -19,17 +20,9 @@ data class SongListUiState(
 )
 
 @HiltViewModel
-class SongListViewModel @Inject constructor() : ViewModel() {
-
-    private val _songs = MutableStateFlow<List<Song>>(
-        // 초기 더미 데이터
-        listOf(
-            Song(title = "Hype Boy", artist = "NewJeans", isFavorite = true),
-            Song(title = "Ditto", artist = "NewJeans"),
-            Song(title = "Seven", artist = "Jung Kook"),
-            Song(title = "I AM", artist = "IVE")
-        )
-    )
+class SongListViewModel @Inject constructor(
+    private val repository: SongRepository  // Repository 주입 받음
+) : ViewModel() {
 
     private val _inputTitle = MutableStateFlow("")
     private val _inputArtist = MutableStateFlow("")
@@ -37,7 +30,9 @@ class SongListViewModel @Inject constructor() : ViewModel() {
 
     // ViewModel에서 데이터를 가공해서 UiState로 만듦
     val uiState: StateFlow<SongListUiState> = combine(
-        _songs, _inputTitle, _inputArtist
+        repository.getSongsStream(), // ⭐️ Repository의 데이터를 실시간 구독
+        _inputTitle,
+        _inputArtist
     ) {
         songs, title, artist ->
         SongListUiState(
@@ -69,54 +64,45 @@ class SongListViewModel @Inject constructor() : ViewModel() {
         if (title.isBlank()) return
 
         val finalArtist = if (artist.isBlank()) "Unknown Artist" else artist
-        val newSong = Song(title = title, artist = finalArtist)
-        _songs.update { it + newSong }
+        viewModelScope.launch {
+            // Repository에 저장 요청
+            repository.addSong(Song(title = title, artist = finalArtist))
 
-        _inputTitle.value = ""
-        _inputArtist.value = ""
+            // 입력창 초기화
+            _inputTitle.value = ""
+            _inputArtist.value = ""
+        }
     }
 
     // 즐겨찾기 토글 (상태 변경)
     fun toggleFavorite(songId: String) {
-        _songs.update { list ->
-            list.map {
-                if (it.id == songId) it.copy(isFavorite = !it.isFavorite) else it
-            }
+        viewModelScope.launch {
+            //  현재 노래 찾기
+            val currentSong = repository.getSongById(songId) ?: return@launch
+            //  상태 바꿔서 업데이트 요청
+            repository.updateSong(currentSong.copy(isFavorite = !currentSong.isFavorite))
         }
     }
 
     // 노래 정보 수정 기능
     fun updateSong(id: String, newTitle: String, newArtist: String) {
-        _songs.update { list ->
-            list.map {
-                if (it.id == id ) it.copy(title = newTitle, artist = newArtist) else it
-            }
+        viewModelScope.launch {
+            val currentSong = repository.getSongById(id) ?: return@launch
+            repository.updateSong(currentSong.copy(title = newTitle, artist = newArtist))
         }
     }
 
     // 노래 삭제 기능
     fun deleteSong(id: String) {
-        _songs.update { list -> list.filter { it.id != id } }
+        viewModelScope.launch {
+            repository.deleteSong(id)
+        }
     }
 
-    // 순서 변경 (드래그 앤 드롭)
-    // 중요: 즐겨찾기가 아닌 항목들끼리만 순서를 바꾼다.
     fun reorderByKeys(fromId: String, toId: String) {
-        _songs.update { list ->
-            // 전체 리스트 복사
-            val currentList = list.toMutableList()
-
-            // 움직인 아이템과 목표 지점 아이템의 '전체 리스트 기준' 인덱스 찾기
-            val fromIndex = currentList.indexOfFirst { it.id == fromId }
-            val toIndex = currentList.indexOfFirst { it.id == toId }
-
-            // 둘 다 유효한 인덱스일 때만 교체 진행
-            if (fromIndex != -1 && toIndex != -1) {
-                val item = currentList.removeAt(fromIndex)
-                currentList.add(toIndex, item)
-            }
-
-            currentList // 업데이트된 리스트 반환
-        }
+        viewModelScope.launch {
+            repository.swapSongs(fromId, toId)
+        } /** TODO: 이렇게 하면 앱이 켜져 있는 동안은 순서 변경이 완벽하게 유지됩니다!
+                    (앱 껐다 켜도 유지되려면 나중에 Room DB 도입 시 order 필드 관리가 필요합니다) **/
     }
 }
