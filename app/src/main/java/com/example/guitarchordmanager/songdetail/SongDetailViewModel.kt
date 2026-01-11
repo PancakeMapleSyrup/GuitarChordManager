@@ -39,7 +39,7 @@ class SongDetailViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
-        // 화면이 켜지자마자 songId를 꺼냄 (네비게이션에서 보낸 값)
+        // 화면이s 켜지자마자 songId를 꺼냄 (네비게이션에서 보낸 값)
         val songId: String? = savedStateHandle.get<String>("songId")
 
         if (songId != null) {

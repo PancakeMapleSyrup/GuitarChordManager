@@ -15,6 +15,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.hilt.navigation.compose.hiltViewModel // Hilt 사용 시
 
 import com.example.guitarchordmanager.ui.theme.TossBlue
@@ -32,6 +35,8 @@ fun LoginScreen(
     // ViewModel의 상태를 관찰
     // uiState 값이 바뀌면 화면이 자동으로 다시 그려진다.
     val uiState by viewModel.uiState.collectAsState()
+    // 포커스 이동을 위해 필요
+    val focusManager = LocalFocusManager.current
 
     Box(
         modifier = Modifier
@@ -47,13 +52,13 @@ fun LoginScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp) // 좌우 여백 24dp (Toss 표준)
-                .systemBarsPadding(), // 상단 상태바 겹침 방지
+                .systemBarsPadding() // 상단 상태바 겹침 방지
+                .imePadding(), // 키보드 높이만큼 패딩을 주어 입력창이 가려지지 않게 함
             verticalArrangement = Arrangement.Center
         ) {
             Text(
                 text = "🎸 Guitar Chord Manager \n시작해볼까요?",
                 style = Typography.headlineLarge,
-
                 modifier = Modifier.padding(bottom = 40.dp)
             )
 
@@ -61,7 +66,11 @@ fun LoginScreen(
             TextField(
                 value = uiState.id, // ViewModel의 값 사용
                 onValueChange = { viewModel.updateId(it) }, // ViewModel 함수 호출
-                placeholder = "아이디를 입력해주세요"
+                placeholder = "아이디를 입력해주세요",
+                imeAction = ImeAction.Next,
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(androidx.compose.ui.focus.FocusDirection.Down) }
+                )
             )
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -71,7 +80,14 @@ fun LoginScreen(
                 value = uiState.pw,
                 onValueChange = { viewModel.updatePw(it) }, // ViewModel 함수 호출
                 placeholder = "비밀번호를 입력해주세요",
-                isPassword = true
+                isPassword = true,
+                imeAction = ImeAction.Done,
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus() // 키보드 내리기
+                        if (uiState.isButtonEnabled) viewModel.login(onLoginSuccess)
+                    }
+                )
             )
 
             Spacer(modifier = Modifier.height(30.dp))

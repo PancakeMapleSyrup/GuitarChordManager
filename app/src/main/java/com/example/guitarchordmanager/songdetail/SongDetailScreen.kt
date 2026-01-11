@@ -1,9 +1,7 @@
 package com.example.guitarchordmanager.songdetail
 
-import android.R.attr.label
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,20 +18,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.*
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.guitarchordmanager.data.Song
 import com.example.guitarchordmanager.ui.components.EditSongInfoDialog
 import com.example.guitarchordmanager.ui.components.TextField
 import com.example.guitarchordmanager.ui.theme.*
@@ -100,9 +94,25 @@ fun SongDetailScreen(
                     Spacer(modifier = Modifier.height(6.dp))
 
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val highlightBgColor = Color(0xFFFFF9DB)
+                        val highlightContentColor = Color(0xFFFFB800)
+
                         InfoBadge(label = "BPM", value = song.bpm)
-                        InfoBadge(label = "Capo", value = song.capo)
-                        InfoBadge(label = "Tune", value = song.tuning)
+
+                        val isCapoSet = song.capo != "0" && song.capo != "None" && song.capo != "-"
+                        InfoBadge(
+                            label = "Capo",
+                            value = song.capo,
+                            containerColor = if (isCapoSet) highlightBgColor else Gray100,
+                            contentColor = if (isCapoSet) highlightContentColor else Gray900
+                        )
+                        val isTuningChanged = song.tuning != "Standard"
+                        InfoBadge(
+                            label = "Tune",
+                            value = song.tuning,
+                            containerColor = if (isTuningChanged) highlightBgColor else Gray100,
+                            contentColor = if (isTuningChanged) highlightContentColor else Gray900
+                        )
                     }
                 }
             }
@@ -451,9 +461,9 @@ fun SimpleTextInputDialog(
 // 작은 정보 배지 컴포넌트
 // ---------------------------
 @Composable
-fun InfoBadge(label: String, value: String) {
+fun InfoBadge(label: String, value: String, containerColor: Color = Gray100, contentColor: Color = Gray900) {
     Surface(
-        color = Gray100,
+        color = containerColor,
         shape = RoundedCornerShape(6.dp),
     ) {
         Row(
@@ -462,7 +472,6 @@ fun InfoBadge(label: String, value: String) {
         ) {
             Text(label, style = Typography.labelSmall.copy(color = Gray400, fontWeight = FontWeight.Bold))
             Spacer(modifier = Modifier.width(4.dp))
-            Text(value, style = Typography.labelSmall.copy(color = Gray900, fontWeight = FontWeight.Bold))
-        }
+            Text(value, style = Typography.labelSmall.copy(color = contentColor, fontWeight = FontWeight.Bold))}
     }
 }

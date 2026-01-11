@@ -19,7 +19,7 @@ fun AppNavigation() {
     val navController = rememberNavController()
 
     // startDestination: 앱 켜자마자 보일 화면 이름
-    NavHost(navController = navController, startDestination = "SongListScreen") {
+    NavHost(navController = navController, startDestination = "LoginScreen") {
 
         // LoginScreen 화면
         composable("LoginScreen") {

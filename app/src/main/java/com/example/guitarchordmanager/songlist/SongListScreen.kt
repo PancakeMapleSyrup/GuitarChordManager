@@ -3,7 +3,6 @@ package com.example.guitarchordmanager.songlist
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -27,6 +26,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusDirection
 import androidx.hilt.navigation.compose.hiltViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -41,15 +44,13 @@ fun SongListScreen(
     viewModel: SongListViewModel = hiltViewModel(),
     onSongClick: (Song) -> Unit
 ) {
-    // ViewModel의 통합된 UI 상태를 관찰
     val uiState by viewModel.uiState.collectAsState()
-
-    // 수정 중인 노래를 저장하는 상태 (null이면 수정 안하는 중)
     var editingSong by remember { mutableStateOf<Song?>(null) }
-    // 삭제 대기 중인 노래 상태 (null이면 팝업 안 뜸)
     var deletingSong by remember { mutableStateOf<Song?>(null) }
 
-    // 드래그 앤 드롭 상태 설정
+    // 키보드 포커스 제어
+    val focusManager = LocalFocusManager.current
+
     val lazyListState = rememberLazyListState()
     val reorderableState = rememberReorderableLazyListState(lazyListState) { from, to ->
         val fromId = from.key as? String
@@ -68,7 +69,7 @@ fun SongListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 24.dp)
-                .statusBarsPadding() // 상단 여백 확보
+                .statusBarsPadding()
         ) {
             // 헤더
             Spacer(modifier = Modifier.height(20.dp))
@@ -88,27 +89,41 @@ fun SongListScreen(
                 Column(
                     modifier = Modifier.weight(1f)
                 ) {
-                    // 제목 입력 창
+                    // 제목 입력
                     TextField(
                         value = uiState.inputTitle,
                         onValueChange = { viewModel.updateInputTitle(it) },
-                        placeholder = "노래 제목 추가..."
+                        placeholder = "노래 제목 추가...",
+                        imeAction = ImeAction.Next,
+                        keyboardActions = KeyboardActions(
+                            onNext = { focusManager.moveFocus(FocusDirection.Down) }
+                        )
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp)) // 입력창 사이 간격
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // 가수 입력 창
+                    // 가수 입력
                     TextField(
                         value = uiState.inputArtist,
                         onValueChange = { viewModel.updateInputArtist(it) },
-                        placeholder = "가수 이름 추가..."
+                        placeholder = "가수 이름 추가...",
+                        imeAction = ImeAction.Done,
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                viewModel.addSong()
+                                focusManager.clearFocus()
+                            }
+                        )
                     )
                 }
                 Spacer(modifier = Modifier.width(12.dp))
 
-                // 추가 버튼 (작은 원형)
+                // 추가 버튼
                 IconButton(
-                    onClick = { viewModel.addSong() },
+                    onClick = {
+                        viewModel.addSong()
+                        focusManager.clearFocus()
+                    },
                     modifier = Modifier
                         .width(56.dp)
                         .fillMaxHeight()
@@ -118,86 +133,109 @@ fun SongListScreen(
                 }
             }
 
-            // 리스트 (즐겨찾기 + 일반)
-            LazyColumn(
-                state = lazyListState,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 100.dp),
-                modifier = Modifier.fillMaxSize()
-            ) {
-                // [섹션 1] 즐겨찾기 (고정됨)
-                if (uiState.favoriteSongs.isNotEmpty()) {
-                    item {
-                        Text(
-                            "즐겨찾기",
-                            color = Gray400,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                    }
-                    items(uiState.favoriteSongs, key = { it.id }) { song ->
-                        // 즐겨찾기는 드래그 기능 없이 렌더링
-                        SongItem(
-                            song = song,
-                            onClick = { onSongClick(song) },
-                            onFavoriteClick = { viewModel.toggleFavorite(song.id) },
-                            onEditClick = { editingSong = song },
-                            onDeleteClick = { viewModel.deleteSong(song.id) },
-                            isDeletable = false,
-                            isDraggable = false
-                        )
-                    }
-                }
+            // [핵심 수정] Box를 사용하여 LazyColumn과 안내 문구를 겹쳐서 배치
+            Box(modifier = Modifier.fillMaxSize()) {
 
-                // [섹션 2] 일반 목록 (드래그 가능)
-                if (uiState.normalSongs.isNotEmpty()) {
-                    item {
-                        Text(
-                            "목록",
-                            color = Gray400,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                        )
+                // LazyColumn은 데이터가 있든 없든 항상 그려둡니다
+                LazyColumn(
+                    state = lazyListState,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 100.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // 즐겨찾기 섹션
+                    if (uiState.favoriteSongs.isNotEmpty()) {
+                        item {
+                            Text(
+                                "즐겨찾기",
+                                color = Gray400,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                        items(uiState.favoriteSongs, key = { it.id }) { song ->
+                            SongItem(
+                                song = song,
+                                onClick = { onSongClick(song) },
+                                onFavoriteClick = { viewModel.toggleFavorite(song.id) },
+                                onEditClick = { editingSong = song },
+                                onDeleteClick = { viewModel.deleteSong(song.id) },
+                                isDeletable = false,
+                                isDraggable = false
+                            )
+                        }
                     }
-                    // itemsIndexed를 사용해야 Reorderable에서 정확한 위치 파악 가능
-                    itemsIndexed(uiState.normalSongs, key = { _, song -> song.id }) { index, song ->
-                        ReorderableItem(reorderableState, key = song.id) { isDragging ->
-                            // 드래그 중일 때 약간 붕 뜨는 효과
-                            val elevation by animateDpAsState(if (isDragging) 10.dp else 0.dp, label = "elevation")
 
-                            Box(
-                                modifier = Modifier
-                                    .shadow(elevation, RoundedCornerShape(20.dp))
-                                    .background(Color.Transparent)
-                            ) {
-                                SongItem(
-                                    song = song,
-                                    onClick = { onSongClick(song) },
-                                    onFavoriteClick = { viewModel.toggleFavorite(song.id) },
-                                    onEditClick = { editingSong = song },
-                                    onDeleteClick = { deletingSong = song },
-                                    isDeletable = true,
-                                    isDraggable = true,
-                                    // 드래그 핸들 modifier 전달
-                                    dragModifier = Modifier.draggableHandle()
-                                )
+                    // 일반 목록 섹션
+                    if (uiState.normalSongs.isNotEmpty()) {
+                        item {
+                            Text(
+                                "목록",
+                                color = Gray400,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                            )
+                        }
+                        itemsIndexed(uiState.normalSongs, key = { _, song -> song.id }) { index, song ->
+                            ReorderableItem(reorderableState, key = song.id) { isDragging ->
+                                val elevation by animateDpAsState(if (isDragging) 10.dp else 0.dp, label = "elevation")
+
+                                Box(
+                                    modifier = Modifier
+                                        .shadow(elevation, RoundedCornerShape(20.dp))
+                                        .background(Color.Transparent)
+                                ) {
+                                    SongItem(
+                                        song = song,
+                                        onClick = { onSongClick(song) },
+                                        onFavoriteClick = { viewModel.toggleFavorite(song.id) },
+                                        onEditClick = { editingSong = song },
+                                        onDeleteClick = { deletingSong = song },
+                                        isDeletable = true,
+                                        isDraggable = true,
+                                        dragModifier = Modifier.draggableHandle()
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
+
+                // 데이터가 진짜 없을 때만, 안내 문구를 화면 중앙에 띄웁니다.
+                if (uiState.favoriteSongs.isEmpty() && uiState.normalSongs.isEmpty()) {
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(bottom = 100.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "아직 추가된 노래가 없어요",
+                            style = Typography.titleMedium,
+                            color = Gray900,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "위 입력창에서 노래를 추가해보세요!",
+                            style = Typography.bodyMedium,
+                            color = Gray400
+                        )
+                    }
+                }
+            } // End of Box
 
             // 수정 창
             if (editingSong != null) {
                 EditSongDialog(
                     initialTitle = editingSong!!.title,
                     initialArtist = editingSong!!.artist,
-                    onDismiss = { editingSong = null }, // 취소하면 닫기
+                    onDismiss = { editingSong = null },
                     onConfirm = { newTitle, newArtist ->
                         viewModel.updateSong(editingSong!!.id, newTitle, newArtist)
-                        editingSong = null // 수정 후 닫기
+                        editingSong = null
                     }
                 )
             }
@@ -206,11 +244,11 @@ fun SongListScreen(
             if (deletingSong != null) {
                 DeleteDialog(
                     title = "노래를 삭제할까요?",
-                    description = "'${deletingSong!!.title}' 항목이\n영구적으로 삭제됩니다.", // 취소하면 닫기만 함
+                    description = "'${deletingSong!!.title}' 항목이\n영구적으로 삭제됩니다.",
                     onDismiss = { deletingSong = null },
                     onConfirm = {
                         viewModel.deleteSong(deletingSong!!.id)
-                        deletingSong = null // 닫기
+                        deletingSong = null
                     }
                 )
             }

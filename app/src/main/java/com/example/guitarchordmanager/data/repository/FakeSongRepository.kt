@@ -41,7 +41,7 @@ class FakeSongRepository @Inject constructor() : SongRepository {
     }
 
     override suspend fun swapSongs(fromId: String, toId: String) {
-        // 현제 리스트 가져오기
+        // 현재 리스트 가져오기
         val currentList = songs.value.toMutableList()
 
         // 인덱스 찾기
