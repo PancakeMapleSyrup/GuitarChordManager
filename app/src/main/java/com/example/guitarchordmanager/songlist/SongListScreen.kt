@@ -1,6 +1,7 @@
 package com.example.guitarchordmanager.songlist
 
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -9,6 +10,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Menu
@@ -30,7 +33,8 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.draw.scale
 import androidx.hilt.navigation.compose.hiltViewModel
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
@@ -39,7 +43,6 @@ import com.example.guitarchordmanager.ui.components.DDaySetupDialog
 import com.example.guitarchordmanager.ui.components.EditSongDialog
 import com.example.guitarchordmanager.ui.components.DeleteDialog
 import com.example.guitarchordmanager.ui.components.SimpleTextField
-import com.example.guitarchordmanager.ui.components.TestButton
 import com.example.guitarchordmanager.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -52,6 +55,14 @@ fun SongListScreen(
     val dDayState by viewModel.dDayState.collectAsState()
     var editingSong by remember { mutableStateOf<Song?>(null) }
     var deletingSong by remember { mutableStateOf<Song?>(null) }
+
+    // 플로팅 버튼(파트 추가) 애니메이션을 위한 코드
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        label = "scale"
+    )
 
     // 키보드 포커스 제어
     val focusManager = LocalFocusManager.current
@@ -160,17 +171,28 @@ fun SongListScreen(
                 Spacer(modifier = Modifier.width(12.dp))
 
                 // 추가 버튼
-                IconButton(
-                    onClick = {
-                        viewModel.addSong()
-                        focusManager.clearFocus()
-                    },
+                Box(
                     modifier = Modifier
                         .width(56.dp)
                         .fillMaxHeight()
-                        .background(TossBlue, RoundedCornerShape(20.dp))
+                        .scale(scale) // 애니메이션 크기 적용
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(TossBlue)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = null, // 물결 효과 제거
+                            onClick = {
+                                viewModel.addSong()
+                                focusManager.clearFocus()
+                            }
+                        ),
+                    contentAlignment = Alignment.Center // 아이콘 중앙 정렬
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White)
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Add",
+                        tint = Color.White
+                    )
                 }
             }
 
@@ -191,7 +213,7 @@ fun SongListScreen(
                                 "즐겨찾기",
                                 color = Gray400,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
+                                fontSize = 15.sp,
                                 modifier = Modifier.padding(vertical = 8.dp)
                             )
                         }
@@ -215,7 +237,7 @@ fun SongListScreen(
                                 "목록",
                                 color = Gray400,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
+                                fontSize = 15.sp,
                                 modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                             )
                         }

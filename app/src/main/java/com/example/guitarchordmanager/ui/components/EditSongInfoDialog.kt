@@ -22,8 +22,9 @@ fun EditSongInfoDialog(
     initialBpm: String,
     initialCapo: String,
     initialTuning: String,
+    initialYoutubeLink: String,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String, String, String) -> Unit
+    onConfirm: (String, String, String, String, String, String) -> Unit
 ) {
     var title by remember { mutableStateOf(initialTitle) }
     var artist by remember { mutableStateOf(initialArtist) }
@@ -34,6 +35,7 @@ fun EditSongInfoDialog(
         mutableStateOf(if (initialCapo == "None" || initialCapo == "0") "" else initialCapo)
     }
     var tuning by remember { mutableStateOf(initialTuning) }
+    var youtubeLink by remember { mutableStateOf(initialYoutubeLink) }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
@@ -58,7 +60,7 @@ fun EditSongInfoDialog(
                 HorizontalDivider(Modifier, DividerDefaults.Thickness, color = Gray100)
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 부가 정보 (가로 배치 or 세로 배치)
+                // 부가 정보 (가로 배치)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(Modifier.weight(1f)) {
                         TextFieldWithLabel(
@@ -84,7 +86,24 @@ fun EditSongInfoDialog(
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                TextFieldWithLabel(value = tuning, onValueChange = { tuning = it }, label = "Tuning")
+                TextFieldWithLabel(
+                    value = tuning,
+                    onValueChange = { tuning = it },
+                    label = "Tuning"
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(Modifier, DividerDefaults.Thickness, color = Gray100)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // 유튜브 링크 입력 창
+                TextFieldWithLabel(
+                    label = "유튜브 링크",
+                    value = youtubeLink,
+                    onValueChange = { youtubeLink = it },
+                    placeholder = "https://youtu.be/...",
+                    keyboardType = KeyboardType.Uri
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -93,7 +112,7 @@ fun EditSongInfoDialog(
                     TextButton(onClick = onDismiss) { Text("취소", color = Gray400) }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { onConfirm(title, artist, bpm.ifBlank{ "-" }, capo.ifBlank{ "None" }, tuning) },
+                        onClick = { onConfirm(title, artist, bpm.ifBlank{ "-" }, capo.ifBlank{ "None" }, tuning, youtubeLink) },
                         colors = ButtonDefaults.buttonColors(containerColor = TossBlue)
                     ) {
                         Text("저장")

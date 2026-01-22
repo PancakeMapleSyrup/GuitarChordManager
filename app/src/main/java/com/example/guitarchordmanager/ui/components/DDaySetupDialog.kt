@@ -137,7 +137,7 @@ fun DDaySetupDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 날짜 선택기
-                Text("날짜 선택", style = Typography.bodyMedium, color = Gray400)
+                Text("날짜 선택", style = Typography.bodySmall, color = Gray400)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 // DatePicker가 너무 크면 스크롤 가능하게 Box로 감쌉니다

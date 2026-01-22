@@ -15,7 +15,8 @@ import kotlinx.coroutines.launch
 // --- 데이터 모델 ---
 data class Chord(
     val id: String = UUID.randomUUID().toString(),
-    val name: String // 예: "C", "Am7"
+    val name: String, // 예: "C", "Am7"
+    val positions: List<Int> = listOf(-1, -1, -1, -1, -1, -1)
 )
 
 data class SongPart(
@@ -40,7 +41,7 @@ class SongDetailViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     init {
-        // 화면이s 켜지자마자 songId를 꺼냄 (네비게이션에서 보낸 값)
+        // 화면이 켜지자마자 songId를 꺼냄 (네비게이션에서 보낸 값)
         val songId: String? = savedStateHandle.get<String>("songId")
 
         if (songId != null) {
@@ -48,28 +49,30 @@ class SongDetailViewModel @Inject constructor(
         }
     }
 
+    // 노래를 DB에서 불러오는 함수
     private fun loadSong(id: String) {
-        viewModelScope.launch {
-            val song = repository.getSongById(id)
-            _uiState.update { it.copy(song = song) }
+        viewModelScope.launch { // ViewModel이 살아있는 동안만 작동
+            _uiState.update { it.copy(isLoading = true) } // 로딩 시작
+            val song = repository.getSongById(id) // 관리자(Repository)에게 ID로 노래를 찾아오라고 시킴
+            _uiState.update { it.copy(song = song, isLoading = false) } // 노래 도착. 로딩을 끝내고 찾아온 노래를 상태에 넣음
         }
     }
 
     // 파트 추가
     fun addPart(name: String) {
+        // 현재 로딩된 노래가 없으면 아무것도 안하고 함수 종료
         val currentSong = _uiState.value.song ?: return
+        // 새로운 파트 객체 생성
         val newPart = SongPart(name = name)
-
-        // 현재 노래의 parts 리스트에 추가
+        // 현재 노래의 parts 리스트에 새로운 파트 추가
         val updatedSong = currentSong.copy(parts = currentSong.parts + newPart)
-
+        // 변경한 노래를 저장
         saveSongUpdate(updatedSong)
     }
 
     // 파트 정보(이름, 메모) 수정
     fun updatePartInfo(partId: String, newName: String, newMemo: String) {
         val currentSong = _uiState.value.song ?: return
-
         // 해당 파트를 찾아 이름과 메모를 변경
         val updatedParts = currentSong.parts.map { part ->
             if (part.id == partId) {
@@ -78,36 +81,40 @@ class SongDetailViewModel @Inject constructor(
                 part
             }
         }
-
         // 변경된 파트 리스트로 노래 업데이트
         val updatedSong = currentSong.copy(parts = updatedParts)
-
         // 저장 및 UI 갱신
         saveSongUpdate(updatedSong)
     }
 
     // 파트 순서 변경
     fun reorderParts(fromId: String, toId: String) {
-        _uiState.update { state ->
-            val list = state.parts.toMutableList()
-            val fromIndex = list.indexOfFirst { it.id == fromId }
-            val toIndex = list.indexOfFirst { it.id == toId }
-            if (fromIndex != -1 && toIndex != -1) {
-                val item = list.removeAt(fromIndex)
-                list.add(toIndex, item)
-            }
-            state.copy(parts = list)
+        val currentSong = _uiState.value.song ?: return
+        // 순서를 바꾸려면 '수정 가능한 리스트(MutableList)'로 변환해야 함
+        val list = currentSong.parts.toMutableList()
+        // 이동할 녀석(from)과 목적지(to)의 위치(index)를 찾는다
+        val fromIndex = list.indexOfFirst { it.id == fromId }
+        val toIndex = list.indexOfFirst { it.id == toId }
+
+        // 둘 다 잘 찾았다면 위치를 바꾼다
+        if (fromIndex != -1 && toIndex != -1) {
+            val item = list.removeAt(fromIndex)
+            list.add(toIndex, item)
+
+            // 순서가 바뀐 리스트로 노래 업데이트
+            val updatedSong = currentSong.copy(parts = list)
+            saveSongUpdate(updatedSong)
         }
     }
 
     // 코드 추가 (특정 파트에)
-    fun addChord(partId: String, chordName: String) {
+    fun addChord(partId: String, chordName: String, positions: List<Int>) {
         val currentSong = _uiState.value.song ?: return
 
         // 해당 파트를 찾아서 코드 추가
         val updatedParts = currentSong.parts.map { part ->
             if (part.id == partId) {
-                part.copy(chords = part.chords + Chord(name = chordName))
+                part.copy(chords = part.chords + Chord(name = chordName, positions = positions))
             } else part
         }
         val updatedSong = currentSong.copy(parts = updatedParts)
@@ -148,27 +155,25 @@ class SongDetailViewModel @Inject constructor(
 
     // 삭제 기능들
     fun deletePart(partId: String) {
-        _uiState.update { it.copy(parts = it.parts.filter { part -> part.id != partId }) }
+        val currentSong = _uiState.value.song ?: return
+
+        val updatedParts = currentSong.parts.filter { it.id != partId }
+
+        val updatedSong = currentSong.copy(parts = updatedParts)
+        saveSongUpdate(updatedSong)
     }
 
     fun deleteChord(partId: String, chordId: String) {
-        _uiState.update { state ->
-            val newParts = state.parts.map { part ->
-                if (part.id == partId) {
-                    part.copy(chords = part.chords.filter { it.id != chordId })
-                } else part
-            }
-            state.copy(parts = newParts)
-        }
-    }
+        val currentSong = _uiState.value.song ?: return
 
-    private fun saveSongUpdate(updatedSong: Song) {
-        viewModelScope.launch {
-            // DB에 저장
-            repository.updateSong(updatedSong)
-            // UI 업데이트
-            _uiState.update { it.copy(song = updatedSong) }
+        val updatedParts = currentSong.parts.map { part ->
+            if (part.id == partId) {
+                part.copy(chords = part.chords.filter { it.id != chordId })
+            } else part
         }
+
+        val updatedSong = currentSong.copy(parts = updatedParts)
+        saveSongUpdate(updatedSong)
     }
 
     // 노래 메타데이터 수정 함수 추가
@@ -177,7 +182,8 @@ class SongDetailViewModel @Inject constructor(
         newArtist: String,
         newBpm: String,
         newCapo: String,
-        newTuning: String
+        newTuning: String,
+        newYoutubeLink: String
     ) {
         val currentSong = _uiState.value.song ?: return
 
@@ -187,15 +193,19 @@ class SongDetailViewModel @Inject constructor(
             artist = newArtist,
             bpm = newBpm,
             capo = newCapo,
-            tuning = newTuning
+            tuning = newTuning,
+            youtubeLink = newYoutubeLink
         )
-
-        viewModelScope.launch {
-            // 저장소에 업데이트 요청
-            repository.updateSong(updatedSong)
-        }
-
-        _uiState.update { it.copy(song = updatedSong) }
+        saveSongUpdate(updatedSong)
     }
-    // TODO: 실제로는 여기서 Repository.update(updatedSong)를 불러서 DB에 저장해야 함
+
+    // DB 저장 및 화면 갱신
+    private fun saveSongUpdate(updatedSong: Song) {
+        viewModelScope.launch {
+            // DB에 저장
+            repository.updateSong(updatedSong)
+            // UI 업데이트
+            _uiState.update { it.copy(song = updatedSong) }
+        }
+    }
 }

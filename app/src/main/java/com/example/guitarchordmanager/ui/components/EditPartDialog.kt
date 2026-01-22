@@ -43,9 +43,8 @@ fun EditPartDialog(
         text = {
             Column {
                 // 파트 이름 입력
-                Text("파트 이름", style = Typography.labelMedium, color = Gray400)
-                Spacer(modifier = Modifier.height(8.dp))
-                SimpleTextField(
+                TextFieldWithLabel(
+                    label = "파트 이름",
                     value = name,
                     onValueChange = { name = it },
                     placeholder = "예: Verse 1, Chorus",
@@ -55,9 +54,8 @@ fun EditPartDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // 메모 입력
-                Text("메모 (선택)", style = Typography.labelMedium, color = Gray400)
-                Spacer(modifier = Modifier.height(8.dp))
-                SimpleTextField(
+                TextFieldWithLabel(
+                    label = "메모 (선택)",
                     value = memo,
                     onValueChange = { memo = it },
                     placeholder = "예: 조용하게 아르페지오",

@@ -12,5 +12,6 @@ data class Song(
     val bpm: String = "-",
     val capo: String = "None",
     val tuning: String = "Standard",
+    val youtubeLink: String = "",
     val parts: List<SongPart> = emptyList()
 )

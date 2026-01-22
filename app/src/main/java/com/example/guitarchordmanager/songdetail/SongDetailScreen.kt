@@ -1,8 +1,14 @@
 package com.example.guitarchordmanager.songdetail
 
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -24,15 +30,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.guitarchordmanager.R
 import com.example.guitarchordmanager.ui.components.EditSongInfoDialog
 import com.example.guitarchordmanager.ui.components.EditPartDialog
 import com.example.guitarchordmanager.ui.components.AddPartDialog
 import com.example.guitarchordmanager.ui.components.AddChordDialog
+import com.example.guitarchordmanager.ui.components.DeleteDialog
 import com.example.guitarchordmanager.ui.theme.*
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
@@ -60,6 +72,7 @@ fun SongDetailScreen(
     var showAddChordDialogForPartId by remember { mutableStateOf<String?>(null) } // 파트 ID 저장
     var showEditInfoDialog by remember { mutableStateOf(false) }
     var editingPart by remember { mutableStateOf<SongPart?>(null) }
+    var partToDelete by remember { mutableStateOf<SongPart?>(null) }
 
     Box(
         modifier = Modifier
@@ -137,7 +150,7 @@ fun SongDetailScreen(
                 contentPadding = PaddingValues(bottom = 100.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(uiState.song?.parts ?: emptyList()) { part ->
+                items(items = uiState.song?.parts ?: emptyList(), key = { part -> part.id }) { part ->
                     ReorderableItem(partReorderState, key = part.id) { isDragging ->
                         val elevation by animateDpAsState(if (isDragging) 8.dp else 0.dp, label = "partElev")
 
@@ -146,7 +159,7 @@ fun SongDetailScreen(
                             part = part,
                             elevation = elevation,
                             onAddChordClick = { showAddChordDialogForPartId = part.id },
-                            onDeletePartClick = { viewModel.deletePart(part.id) },
+                            onDeletePartClick = { partToDelete = part },
                             onReorderChord = { from, to -> viewModel.reorderChords(part.id, from, to) },
                             onDeleteChord = { chordId -> viewModel.deleteChord(part.id, chordId) },
                             onEditPartClick = { editingPart = part }, // 파트 수정 다이얼로그 호출
@@ -163,39 +176,117 @@ fun SongDetailScreen(
                     initialBpm = song.bpm,
                     initialCapo = song.capo,
                     initialTuning = song.tuning,
+                    initialYoutubeLink = song.youtubeLink,
                     onDismiss = { showEditInfoDialog = false },
-                    onConfirm = { t, a, b, c, tu ->
-                        viewModel.updateSongInfo(t, a, b, c, tu)
+                    onConfirm = { t, a, b, c, tu, link ->
+                        viewModel.updateSongInfo(t, a, b, c, tu, link)
                         showEditInfoDialog = false
                     }
                 )
             }
         }
 
-        // 플로팅 버튼 (파트 추가)
-        ExtendedFloatingActionButton(
-            onClick = { showAddPartDialog = true },
-            containerColor = TossBlue,
-            contentColor = Color.White,
-            shape = RoundedCornerShape(20.dp),
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(24.dp),
-            icon = {
-                Icon(Icons.Default.Add, contentDescription = null)
-            },
-            text = {
-                Text(text = "파트 추가", style = Typography.labelLarge.copy(fontWeight = FontWeight.Bold))
-            }
-        )
+                .padding(24.dp), // 전체 여백
+            horizontalAlignment = Alignment.End, // 오른쪽 정렬
+            verticalArrangement = Arrangement.spacedBy(16.dp) // 버튼 사이 간격
+        ) {
+            // 유튜브 버튼
+            val context = LocalContext.current
+            val hasYoutubeLink = song.youtubeLink.isNotBlank() // 유튜브 링크가 있다면 true
+            val youtubeColor = if (hasYoutubeLink) Color(0xFFea0034) else Gray400
+            // 유튜브 버튼 애니메이션 상태 준비
+            val ytInteractionSource = remember { MutableInteractionSource() }
+            val ytIsPressed by ytInteractionSource.collectIsPressedAsState()
+            val ytScale by animateFloatAsState(
+                targetValue = if (ytIsPressed) 0.92f else 1f,
+                label = "yt_scale"
+            )
 
-        // --- 다이얼로그들 ---
+            Box(
+                modifier = Modifier
+                    .scale(ytScale) // 크기 애니메이션
+                    .shadow(elevation = 6.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(youtubeColor)
+                    .clickable(
+                        interactionSource = ytInteractionSource,
+                        indication = null, // 물결 제거
+                        onClick = {
+                            if (hasYoutubeLink) {
+                                // 링크 연결됨 -> 유튜브 실행
+                                try {
+                                    val intent =
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(song.youtubeLink))
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, "링크를 열 수 없습니다.", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                // 링크 없음 -> 안내 및 수정 창 열기
+                                Toast.makeText(context, "유튜브 링크를 설정해주세요.", Toast.LENGTH_SHORT).show()
+                                showEditInfoDialog = true
+                            }
+                        }
+                    )
+                    .padding(16.dp)
+            ) {
+                Icon(
+                    painter = painterResource(id = R.drawable.youtube_activity),
+                    contentDescription = "YouTube Activity",
+                    tint = Color.White,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            // 파트 추가 버튼
+            // 파트 추가 버튼 애니메이션 상태 준비
+            val addInteractionSource = remember { MutableInteractionSource() }
+            val addIsPressed by addInteractionSource.collectIsPressedAsState()
+            val addScale by animateFloatAsState(
+                targetValue = if (addIsPressed) 0.96f else 1f,
+                label = "add_scale"
+            )
+
+            Box(
+                modifier = Modifier
+                    .scale(addScale)
+                    .shadow(elevation = 6.dp, shape = RoundedCornerShape(20.dp))
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(TossBlue)
+                    .clickable(
+                        interactionSource = addInteractionSource,
+                        indication = null,
+                        onClick = { showAddPartDialog = true }
+                    )
+                    .padding(horizontal = 20.dp, vertical = 16.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "파트 추가",
+                        style = Typography.labelLarge.copy(
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    )
+                }
+            }
+        }
 
         // 파트 추가 다이얼로그
         if (showAddPartDialog) {
             AddPartDialog(
                 title = "새로운 파트 추가",
                 placeholder = "예: Chorus, Verse 1",
+                existingPartNames = uiState.song?.parts?.map { it.name } ?: emptyList(),
                 onDismiss = { showAddPartDialog = false },
                 onConfirm = { name ->
                     viewModel.addPart(name)
@@ -221,20 +312,31 @@ fun SongDetailScreen(
         if (showAddChordDialogForPartId != null) {
             AddChordDialog(
                 title = "코드 추가",
-                placeholder = "예: Am7, G/B",
                 onDismiss = { showAddChordDialogForPartId = null },
-                onConfirm = { chordName ->
-                    viewModel.addChord(showAddChordDialogForPartId!!, chordName)
+                onConfirm = { name, positions ->
+                    viewModel.addChord(showAddChordDialogForPartId!!, name, positions)
                     // showAddChordDialogForPartId = null // 계속 열어두려면 이 줄 삭제
+                }
+            )
+        }
+
+        // 파트 삭제 다이얼로그
+        if (partToDelete != null) {
+            DeleteDialog(
+                title = "파트를 삭제할까요?",
+                description = "'${partToDelete!!.name}' 파트가 삭제됩니다.\n안에 포함된 코드들도 함께 사라집니다.",
+                confirmText = "삭제",
+                onDismiss = { partToDelete = null }, // 취소 시 초기화
+                onConfirm = {
+                    viewModel.deletePart(partToDelete!!.id) // 실제 삭제 수행
+                    partToDelete = null // 다이얼로그 닫기
                 }
             )
         }
     }
 }
 
-// ------------------------------------
-// 컴포넌트: 개별 파트 카드 (PartItem)
-// ------------------------------------
+
 @Composable
 fun PartItem(
     part: SongPart,
@@ -329,7 +431,7 @@ fun PartItem(
                 // (화면너비 + 간격) / (최소너비 + 간격)
                 val columns = maxOf(1, ((screenWidth + spacing) / (minCellWidth + spacing)).toInt())
 
-                // 필요한 행 갯 계산
+                // 필요한 행 개수 계산
                 val rows = ceil(part.chords.size.toFloat() / columns).toInt()
 
                 // 전체 그리드 높이 계산 (행 높이 + 간격)
@@ -397,13 +499,25 @@ fun ChordChip(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.95f else 1f,
+        label = "chord_scale"
+    )
+
     Surface(
         shape = RoundedCornerShape(12.dp),
         color = Color.White,
         shadowElevation = elevation,
         modifier = modifier
+            .scale(scale)
             .height(240.dp)
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally

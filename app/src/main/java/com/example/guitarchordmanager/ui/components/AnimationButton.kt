@@ -24,10 +24,12 @@ fun AnimationButton(
     onClick: () -> Unit,
     enabled: Boolean = true
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
+    val interactionSource = remember { MutableInteractionSource() } // 사용자가 버튼을 누르고 있는지 감지
+    val isPressed by interactionSource.collectIsPressedAsState()    // 버튼이 눌린 상태라면 true
 
+    // isPressed가 true이면 크기가 96%로 줄어들고, 떼면 다시 100%로 돌아온다
     val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "scale")
+    // enabled 상태에 따라 배경색과 텍스트 색상이 부드럽게 전환
     val backgroundColor by animateColorAsState(if (enabled) TossBlue else Gray100, label = "bg")
     val contentColor by animateColorAsState(if (enabled) White else Gray400, label = "text")
 
