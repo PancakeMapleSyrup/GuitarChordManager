@@ -3,6 +3,7 @@ package com.example.chordzip.di
 import android.content.Context
 import androidx.room.Room
 import com.example.chordzip.data.AppDatabase
+import com.example.chordzip.data.DDayDao
 import com.example.chordzip.data.SongDao
 import dagger.Module
 import dagger.Provides
@@ -28,5 +29,11 @@ object DatabaseModule {
     @Provides // 이 함수는 SongDao 객체를 제공합니다.
     fun provideSongDao(database: AppDatabase): SongDao {
         return database.songDao() // DB에서 DAO를 꺼내줍니다.
+    }
+
+    // DDayDao 제공 함수
+    @Provides
+    fun provideDDayDao(database: AppDatabase): DDayDao {
+        return database.dDayDao()
     }
 }

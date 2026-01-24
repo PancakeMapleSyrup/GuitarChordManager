@@ -52,7 +52,6 @@ fun SongListScreen(
     onSongClick: (Song) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val dDayState by viewModel.dDayState.collectAsState()
     var editingSong by remember { mutableStateOf<Song?>(null) }
     var deletingSong by remember { mutableStateOf<Song?>(null) }
 
@@ -100,13 +99,14 @@ fun SongListScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 // 헤더 텍스트 조건 (목표 내용이 비어있으면서 목표 날짜도 설정되어 있지 않다면 True)
-                val isDefaultState = dDayState.targetDate == null ||
-                        ((dDayState.dDayText == "Today" || dDayState.dDayText == "D-0") && dDayState.goal.isBlank())
+                val isDefaultState = uiState.dDayTargetDate == null ||
+                        ((uiState.dDayText == "Today" || uiState.dDayText == "D-0") && uiState.dDayGoal.isBlank())
+
                 val headerText = if (!isDefaultState) { // 무언가 설정되어 있음
-                    if (dDayState.goal.isNotBlank()) { // 목표 내용이 설정되어 있다면
-                        "${dDayState.dDayText} | ${dDayState.goal}"
+                    if (uiState.dDayGoal.isNotBlank()) { // 목표 내용이 설정되어 있다면
+                        "${uiState.dDayText} | ${uiState.dDayGoal}"
                     } else { // 목표 날짜만 설정되어 있다면
-                        dDayState.dDayText
+                        uiState.dDayText
                     }
                 } else { // 기본 상태
                     "🎼 플레이리스트"
@@ -258,7 +258,7 @@ fun SongListScreen(
                                         onDeleteClick = { deletingSong = song },
                                         isDeletable = true,
                                         isDraggable = true,
-                                        dragModifier = Modifier.draggableHandle()
+                                        modifier = Modifier.draggableHandle()
                                     )
                                 }
                             }
@@ -319,7 +319,7 @@ fun SongListScreen(
         // D-day 설정 다이얼로그
         if (showDDayDialog) {
             DDaySetupDialog(
-                initialGoal = dDayState.goal,
+                initialGoal = uiState.dDayGoal,
                 onDismiss = { showDDayDialog = false },
                 onConfirm = { date, goal ->
                     viewModel.setDDay(date, goal)
@@ -333,14 +333,14 @@ fun SongListScreen(
 
 @Composable
 fun SongItem(
+    modifier: Modifier = Modifier,
     song: Song,
     onClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit,
     isDeletable: Boolean = true,
-    isDraggable: Boolean,
-    dragModifier: Modifier = Modifier
+    isDraggable: Boolean
 ) {
     // 배경색: 즐겨찾기는 약간 더 눈에 띄게, 일반은 회색
     val backgroundColor = if (song.isFavorite) Color(0xFFE8F3FF) else Gray100.copy(alpha = 0.6f)
@@ -367,7 +367,7 @@ fun SongItem(
                     imageVector = Icons.Default.Menu,
                     contentDescription = "Drag",
                     tint = Gray400,
-                    modifier = dragModifier.size(24.dp) // 크기 지정
+                    modifier = modifier.size(24.dp) // 크기 지정
                 )
             }
 

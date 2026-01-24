@@ -2,12 +2,12 @@ package com.example.chordzip.songlist
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.chordzip.data.DDayDao
+import com.example.chordzip.data.DDayInfo
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import javax.inject.Inject
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 
@@ -20,39 +20,51 @@ data class SongListUiState(
     val favoriteSongs: List<Song> = emptyList(), // 즐겨찾기 목록
     val normalSongs: List<Song> = emptyList(),   // 일반 목록
     val inputTitle: String = "",                 // 입력 중인 제목
-    val inputArtist: String = ""                 // 입력 중인 가수
-)
-
-// D-day 상태 관리를 위한 데이터 클래스
-data class DDayState(
-    val targetDate: LocalDate? = null,
-    val goal: String = "",
-    val dDayText: String = "" // "D-10" 등 계산된 텍스트
+    val inputArtist: String = "",                 // 입력 중인 가수
+    val dDayTargetDate: LocalDate? = null,
+    val dDayGoal: String = "",
+    val dDayText: String = ""
 )
 
 @HiltViewModel
 class SongListViewModel @Inject constructor(
-    private val songDao: SongDao  // DAO를 직접 주입받음
+    private val songDao: SongDao,    // DAO를 직접 주입받음
+    private val dDayDao: DDayDao    // D-day 담당 DAO
 ) : ViewModel() {
     private val _inputTitle = MutableStateFlow("")
     private val _inputArtist = MutableStateFlow("")
 
-    private val _dDayState = MutableStateFlow(DDayState())
-    val dDayState = _dDayState.asStateFlow()
-
-
-
     // ViewModel에서 데이터를 가공해서 UiState로 만듦
     val uiState: StateFlow<SongListUiState> = combine(
         songDao.getAllSongs(), // DB에서 실시간으로 노래 목록을 받아옴
+        dDayDao.getDDayInfo(),
         _inputTitle,
         _inputArtist
-    ) { songs, title, artist ->
+    ) { songs, dDayInfo, title, artist ->
+
+        // D-day 텍스트 계산 로직
+        val dDayText = if (dDayInfo != null) {
+            val today = LocalDate.now()
+            // 날짜 차이 계산
+            val diff = ChronoUnit.DAYS.between(today, dDayInfo.targetDate)
+            when {
+                diff > 0 -> "D-$diff"      // 미래
+                diff == 0L -> "D-Day"      // 당일
+                else -> "D+${-diff}"       // 과거
+            }
+        } else {
+            "" // 설정된 게 없으면 빈 문자열
+        }
+
         SongListUiState(
             favoriteSongs = songs.filter { it.isFavorite }, // DB 데이터 필터링
             normalSongs = songs.filter { !it.isFavorite },
             inputTitle = title,
-            inputArtist = artist
+            inputArtist = artist,
+
+            dDayTargetDate = dDayInfo?.targetDate,
+            dDayGoal = dDayInfo?.goal ?: "",
+            dDayText = dDayText
         )
     }.stateIn(
         scope = viewModelScope,
@@ -62,18 +74,12 @@ class SongListViewModel @Inject constructor(
 
     // D-day 설정 및 계산 함수
     fun setDDay(date: LocalDate, goal: String) {
-        val today = LocalDate.now()
-        val diff = ChronoUnit.DAYS.between(today, date)
+        viewModelScope.launch {
+            // DB에 저장할 객체 생성 (ID는 0으로 자동 고정됨)
+            val info = DDayInfo(targetDate = date, goal = goal)
 
-        val text = when {
-            diff > 0 -> "D-$diff"
-            diff == 0L -> "Today"
-            else -> "D+${-diff}"
-        }
-
-        // 상태 업데이트
-        _dDayState.update {
-            it.copy(targetDate = date, goal = goal, dDayText = text)
+            // DAO를 통해 DB에 저장 (이미 있으면 덮어씌움)
+            dDayDao.insertDDayInfo(info)
         }
     }
 
@@ -93,7 +99,7 @@ class SongListViewModel @Inject constructor(
 
         if (title.isBlank()) return // 제목 없으면 무시
 
-        val finalArtist = if (artist.isBlank()) "Unknown Artist" else artist
+        val finalArtist = artist.ifBlank { "Unknown Artist" }
         viewModelScope.launch {
             // [DB 저장] 새로운 Song 객체를 만들어 DAO에게 전달
             val newSong = Song(title = title, artist = finalArtist)
